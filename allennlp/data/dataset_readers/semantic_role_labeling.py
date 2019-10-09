@@ -262,6 +262,7 @@ class SrlReader(DatasetReader):
             verb = tokens[verb_index].text
 
         metadata_dict["words"] = [x.text for x in tokens]
+        metadata_dict['wordpieces'] = wordpieces
         metadata_dict["verb"] = verb
         metadata_dict["verb_index"] = verb_index
 

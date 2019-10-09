@@ -123,11 +123,12 @@ class SrlBert(Model):
         # when we do viterbi inference in self.decode.
         output_dict["mask"] = mask
         # We add in the offsets here so we can compute the un-wordpieced tags.
-        words, verbs, offsets = zip(*[(x["words"], x["verb"], x["offsets"]) for x in metadata])
+        words, verbs, offsets, wordpieces = zip(*[(x["words"], x["verb"], x["offsets"], x["wordpieces"]) for x in metadata])
         output_dict["words"] = list(words)
         output_dict["verb"] = list(verbs)
         output_dict["wordpiece_offsets"] = list(offsets)
         output_dict['srl_bert_last_layer'] = embedded_text_input.tolist()
+        output_dict['wordpieces'] = wordpieces
 
         if tags is not None:
             loss = sequence_cross_entropy_with_logits(logits,

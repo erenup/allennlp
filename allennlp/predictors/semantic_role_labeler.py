@@ -210,7 +210,7 @@ class SemanticRoleLabelerPredictor(Predictor):
     def predict_instances(self, instances: List[Instance]) -> JsonDict:
         outputs = self._model.forward_on_instances(instances)
 
-        results = {"verbs": [], "words": outputs[0]["words"]}
+        results = {"verbs": [], "words": outputs[0]["words"], "wordpieces":outputs[0]["wordpieces"]}
         for output in outputs:
             tags = output['tags']
             description = self.make_srl_string(output["words"], tags)
