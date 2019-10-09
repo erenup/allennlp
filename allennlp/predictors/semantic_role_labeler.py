@@ -190,6 +190,8 @@ class SemanticRoleLabelerPredictor(Predictor):
                 # Here we just tokenize the input again.
                 original_text = self._tokenizer.split_words(inputs[sentence_index]["sentence"])
                 return_dicts[sentence_index]["words"] = original_text
+                return_dicts[sentence_index]['verbs'] = []
+                return_dicts[sentence_index]['wordpieces'] = None
                 continue
 
             for _ in range(verb_count):
@@ -198,10 +200,14 @@ class SemanticRoleLabelerPredictor(Predictor):
                 tags = output['tags']
                 description = self.make_srl_string(words, tags)
                 return_dicts[sentence_index]["words"] = words
+                return_dicts[sentence_index]["wordpieces"] = output["wordpieces"]
                 return_dicts[sentence_index]["verbs"].append({
                         "verb": output["verb"],
                         "description": description,
                         "tags": tags,
+                        "wordpiece_offsets": output['wordpiece_offsets'],
+                        "wordpiece_tags": output["wordpiece_tags"],
+                        "srl_bert_last_layer": output["srl_bert_last_layer"]
                 })
                 output_index += 1
 
@@ -210,7 +216,7 @@ class SemanticRoleLabelerPredictor(Predictor):
     def predict_instances(self, instances: List[Instance]) -> JsonDict:
         outputs = self._model.forward_on_instances(instances)
 
-        results = {"verbs": [], "words": outputs[0]["words"], "wordpieces":outputs[0]["wordpieces"]}
+        results = {"verbs": [], "words": outputs[0]["words"], "wordpieces": outputs[0]["wordpieces"]}
         for output in outputs:
             tags = output['tags']
             description = self.make_srl_string(output["words"], tags)
