@@ -9,7 +9,7 @@ from functools import partial
 from multiprocessing import Pool
 import re
 import random
-
+from copy import deepcopy
 from multiprocessing import cpu_count
 
 from allennlp.predictors.predictor import Predictor
@@ -93,6 +93,7 @@ def extract_srl(example):
 
 def collect_structure_fusion_examples(example):
     # option adv:
+
     example['adv_type'] = 'srl_option'
     example['adv'] = False
     choices_srl = example['question']['choices_srl']
@@ -131,10 +132,12 @@ def collect_structure_fusion_examples(example):
                             print('match 01:', reg_results.groups())
                         if not reg_results:
                             reg_results = SRL_REGX02.match(description)
-                            print('match 02:', reg_results.groups())
+                            if reg_results:
+                                print('match 02:', reg_results.groups())
                         if not reg_results:
                             reg_results = SRL_REGX12.match(description)
-                            print('match 12:', reg_results.groups())
+                            if reg_results:
+                                print('match 12:', reg_results.groups())
                         if reg_results:
                             groups = reg_results.groups()
                             if len(groups) != 3:
@@ -153,17 +156,18 @@ def collect_structure_fusion_examples(example):
                             else:
                                 print('cannot find before and after in original string')
                     except:
-                        print('words len 1= pos len')
-                        print(words)
-                        print(choice_pos)
-    choices_num = [i for i in range(4) if i != answer_choice]
+                        print('coding errors!')
+
+    adv_num = 0
     if verb_num == 0:
         for i, choice in enumerate(choices):
             if answerKey == choice['label']:
                 answer_choice = i
                 break
+
         if not answer_choice:
             return example
+        choices_num = [i for i in range(4) if i != answer_choice]
         answer_text = example['question']['choices'][answer_choice]['text']
         random_num = random.random()
         if random_num < 0.33:
@@ -174,12 +178,26 @@ def collect_structure_fusion_examples(example):
             adv_num = choices_num[2]
 
         example['question']['choices'][answer_choice]['text'] = example['question']['choices'][answer_choice]['text'] \
-                                                                + ' is bettter than ' + \
+                                                                + ' is better than ' + \
                                                                 example['question']['choices'][adv_num]['text']
         example['question']['choices'][adv_num]['text'] = example['question']['choices'][adv_num][
                                                               'text'] + ' is better than ' + answer_text
         example['adv'] = True
         example['adv_choice'] = adv_num
+        choices_num_remain = [i for i in range(4) if i != answer_choice and i != adv_num]
+        if len(choices_num_remain) == 2:
+            example['question']['choices'][choices_num_remain[0]]['text'] = example['question']['choices'][choices_num_remain[0]][
+                                                                        'text'] \
+                                                                    + ' is better than ' + \
+                                                                    example['question']['choices'][choices_num_remain[1]]['text']
+
+            example['question']['choices'][choices_num_remain[1]]['text'] = example['question']['choices'][choices_num_remain[1]][
+                                                                        'text'] \
+                                                                    + ' is better than ' + \
+                                                                    example['question']['choices'][choices_num_remain[0]]['text']
+        else:
+            print('remain choices:', choices_num_remain, ' skip')
+
 
     if adv_option:
         random_num = random.random()
@@ -196,34 +214,34 @@ def collect_structure_fusion_examples(example):
         example['adv_choice'] =choices_num[adv_num]
     return example
 
+def write_examples_add_retrieve(input_file, examples):
+    with open(input_file, 'w', encoding='utf-8') as fout:
+        for example in examples:
+            fout.write(json.dumps(example) + '\n')
+    add_retrieved_text(input_file, input_file + '.add_retrieve')
+
 def extract_srl_to_advs(input_file, examples_srl):
     examples_fustion = []
     examples_fustion_original = []
     examples_fustion_all = []
+    examples_all_original = []
+    input_file_all_original = input_file + '_original.all'
     input_file_srl_fusion = input_file + '.fusion'
     input_file_srl_fusion_original = input_file_srl_fusion + '.original'
     input_file_srl_fusion_all = input_file_srl_fusion + '.all'
     for example in examples_srl:
-        example_fusion = collect_structure_fusion_examples(example)
+        example_fusion = collect_structure_fusion_examples(deepcopy(example))
         if example_fusion['adv']:
             examples_fustion.append(example_fusion)
             examples_fustion_original.append(example)
-        examples_fustion_all.append(example)
+        examples_fustion_all.append(example_fusion)
+        examples_all_original.append(example)
     # examples_fustion = [example for example in examples_fustion if example['adv'] == True]
     print('fusions write to:', input_file_srl_fusion)
-    with open(input_file_srl_fusion, 'w', encoding='utf-8') as fout:
-        for example in examples_fustion:
-            fout.write(json.dumps(example) + '\n')
-    add_retrieved_text(input_file_srl_fusion, input_file_srl_fusion + '.add_retrieve')
-    print('write fusion original to ' + input_file_srl_fusion_original)
-    with open(input_file_srl_fusion_original, 'w', encoding='utf-8') as fout:
-        for example in examples_fustion_original:
-            fout.write(json.dumps(example) + '\n')
-    add_retrieved_text(input_file_srl_fusion_original, input_file_srl_fusion_original + '.add_retrieve')
-    with open(input_file_srl_fusion_all, 'w', encoding='utf-8') as fout:
-        for example in examples_fustion_all:
-            fout.write(json.dumps(example) + '\n')
-    add_retrieved_text(input_file_srl_fusion_all, input_file_srl_fusion_original + '.add_retrieve')
+    write_examples_add_retrieve(input_file_srl_fusion, examples_fustion)
+    write_examples_add_retrieve(input_file_srl_fusion_original, examples_fustion_original)
+    write_examples_add_retrieve(input_file_srl_fusion_all, examples_fustion_all)
+    write_examples_add_retrieve(input_file_all_original, examples_all_original)
 
 def analyse(input_file, args):
     examples_srl = []

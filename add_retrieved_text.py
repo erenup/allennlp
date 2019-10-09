@@ -63,23 +63,39 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(os.path.join(__file__, os.par
 from es_search import EsSearch, EsHit
 
 MAX_HITS = 20
-es_search = EsSearch(max_hits_per_choice=MAX_HITS, max_hits_retrieved=200)
+from multiprocessing import cpu_count
+from functools import partial
+from multiprocessing import Pool
 
+thread = cpu_count()
+
+
+def init():
+    global es_search
+    es_search = EsSearch(max_hits_per_choice=MAX_HITS, max_hits_retrieved=200)
 
 def add_retrieved_text(qa_file, output_file):
     with open(output_file, 'w') as output_handle, open(qa_file, 'r') as qa_handle:
         print("Writing to {} from {}".format(output_file, qa_file))
         line_tqdm = tqdm(qa_handle, dynamic_ncols=True)
+        json_lines = []
         for line in line_tqdm:
-            json_line = json.loads(line)
-            num_hits = 0
-            output_dict, hits = add_hits_to_qajson(json_line)
+            json_lines.append(json.loads(line))
+        output_lines = []
+        print('start multiple processing')
+        with Pool(thread, initializer=init) as p:
+            annotate = partial(add_hits_to_qajson)
+            output_lines = list(tqdm(p.imap(annotate, json_lines, chunksize=32), desc='add hits to qajson', total=len(json_lines)))
+        # output_dict, hits = add_hits_to_qajson(json_line)
+        num_hits = 0
+        for output_dict, hits in output_lines:
             output_handle.write(json.dumps(output_dict) + "\n")
             num_hits += hits
             line_tqdm.set_postfix(hits=num_hits)
 
 
 def add_hits_to_qajson(qa_json: JsonDict):
+    # print(qa_json['id'])
     question_text = qa_json["question"]["stem"]
     choices = [choice["text"] for choice in qa_json["question"]["choices"]]
     hits_per_choice = es_search.get_hits_for_question(question_text, choices)
