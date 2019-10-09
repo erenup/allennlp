@@ -218,6 +218,9 @@ class SemanticRoleLabelerPredictor(Predictor):
                     "verb": output["verb"],
                     "description": description,
                     "tags": tags,
+                    "wordpiece_offsets": output['wordpiece_offsets'],
+                    "wordpiece_tags": output["wordpiece_tags"],
+                    "srl_bert_last_layer": output["srl_bert_last_layer"]
             })
 
         return sanitize(results)

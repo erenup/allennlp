@@ -127,6 +127,7 @@ class SrlBert(Model):
         output_dict["words"] = list(words)
         output_dict["verb"] = list(verbs)
         output_dict["wordpiece_offsets"] = list(offsets)
+        output_dict['srl_bert_last_layer'] = embedded_text_input.tolist()
 
         if tags is not None:
             loss = sequence_cross_entropy_with_logits(logits,
