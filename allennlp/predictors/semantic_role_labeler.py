@@ -18,7 +18,6 @@ class SemanticRoleLabelerPredictor(Predictor):
     def __init__(self, model: Model, dataset_reader: DatasetReader, language: str = 'en_core_web_sm') -> None:
         super().__init__(model, dataset_reader)
         self._tokenizer = SpacyWordSplitter(language=language, pos_tags=True)
-
     def predict(self, sentence: str) -> JsonDict:
         """
         Predicts the semantic roles of the supplied sentence and returns a dictionary
@@ -165,8 +164,14 @@ class SemanticRoleLabelerPredictor(Predictor):
                                for instance in sentence_instances]
 
         if not flattened_instances:
-            return sanitize([{"verbs": [], "words": self._tokenizer.split_words(x["sentence"])}
-                             for x in inputs])
+            return_dicts: List[JsonDict] = [{"verbs": []} for x in inputs]
+            for sen_index, x in enumerate(inputs):
+                tokens = self._tokenizer.split_words(x['sentence'])
+                instance = self._dataset_reader.text_to_instance(tokens, [0 for _ in tokens])
+                wordpieces = instance.fields['metadata'].metadata['wordpieces']
+                wordpiece_tags = ["O" for _ in wordpieces]
+                return_dicts[sen_index].update({'wordpieces': wordpieces, 'wordpiece_tags': wordpiece_tags, 'verbs': [], 'words': [w.text for w in tokens]})
+            return sanitize(return_dicts)
 
         # Make the instances into batches and check the last batch for
         # padded elements as the number of instances might not be perfectly
@@ -188,10 +193,15 @@ class SemanticRoleLabelerPredictor(Predictor):
                 # We didn't run any predictions for sentences with no verbs,
                 # so we don't have a way to extract the original sentence.
                 # Here we just tokenize the input again.
-                original_text = self._tokenizer.split_words(inputs[sentence_index]["sentence"])
-                return_dicts[sentence_index]["words"] = original_text
+                tokens = self._tokenizer.split_words(inputs[sentence_index]["sentence"])
+                instance = self._dataset_reader.text_to_instance(tokens, [0 for _ in tokens])
+                wordpieces = instance.fields['metadata'].metadata['wordpieces']
+                wordpiece_tags = ["O" for _ in wordpieces]
+
+                return_dicts[sentence_index]["words"] = [w.text for w in tokens]
                 return_dicts[sentence_index]['verbs'] = []
-                return_dicts[sentence_index]['wordpieces'] = None
+                return_dicts[sentence_index]['wordpieces'] = wordpieces
+                return_dicts[sentence_index]['wordpiece_tags'] = wordpiece_tags
                 continue
 
             for _ in range(verb_count):

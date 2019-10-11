@@ -181,7 +181,8 @@ class SrlReader(DatasetReader):
         for token in tokens:
             if self.lowercase_input:
                 token = token.lower()
-            word_pieces = self.bert_tokenizer.wordpiece_tokenizer.tokenize(token)
+            # word_pieces = self.bert_tokenizer.wordpiece_tokenizer.tokenize(token)
+            word_pieces = self.bert_tokenizer.tokenize(token)
             start_offsets.append(cumulative + 1)
             cumulative += len(word_pieces)
             end_offsets.append(cumulative)
