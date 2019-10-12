@@ -217,7 +217,7 @@ class SemanticRoleLabelerPredictor(Predictor):
                         "tags": tags,
                         "wordpiece_offsets": output['wordpiece_offsets'],
                         "wordpiece_tags": output["wordpiece_tags"],
-                        "srl_bert_last_layer": output["srl_bert_last_layer"]
+                        # "srl_bert_last_layer": output["srl_bert_last_layer"]
                 })
                 output_index += 1
 
@@ -236,7 +236,7 @@ class SemanticRoleLabelerPredictor(Predictor):
                     "tags": tags,
                     "wordpiece_offsets": output['wordpiece_offsets'],
                     "wordpiece_tags": output["wordpiece_tags"],
-                    "srl_bert_last_layer": output["srl_bert_last_layer"]
+                    # "srl_bert_last_layer": output["srl_bert_last_layer"]
             })
 
         return sanitize(results)

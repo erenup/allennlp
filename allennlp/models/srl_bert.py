@@ -127,7 +127,7 @@ class SrlBert(Model):
         output_dict["words"] = list(words)
         output_dict["verb"] = list(verbs)
         output_dict["wordpiece_offsets"] = list(offsets)
-        output_dict['srl_bert_last_layer'] = embedded_text_input.tolist()
+        # output_dict['srl_bert_last_layer'] = embedded_text_input.tolist()
         output_dict['wordpieces'] = wordpieces
 
         if tags is not None:
