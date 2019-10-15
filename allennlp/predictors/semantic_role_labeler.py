@@ -96,6 +96,26 @@ class SemanticRoleLabelerPredictor(Predictor):
     def _json_to_instance(self, json_dict: JsonDict):
         raise NotImplementedError("The SRL model uses a different API for creating instances.")
 
+    def tokens_whitespace_to_instances(self, tokens):
+        sentence_joined = " ".join(tokens)
+        word2start = {word: sentence_joined.index(word) for word in sentence_joined.split()}
+        spacy_start2word = {w.idx: w.pos_ for w in self._tokenizer.spacy(sentence_joined)}
+        instances: List[Instance] = []
+        for i, word in enumerate(tokens):
+            pos = spacy_start2word.get(word2start[word], None)
+            if pos is None:
+                print('wraning: a word don\'t get pos:')
+                try:
+                    print(sentence_joined)
+                except:
+                    print('cannot print')
+            if pos == "VERB":
+                verb_labels = [0 for _ in tokens]
+                verb_labels[i] = 1
+                instance = self._dataset_reader.text_to_instance(tokens, verb_labels)
+                instances.append(instance)
+        return instances
+
     def tokens_to_instances(self, tokens):
         words = [token.text for token in tokens]
         instances: List[Instance] = []
@@ -126,9 +146,30 @@ class SemanticRoleLabelerPredictor(Predictor):
         instances : ``List[Instance]``
             One instance per verb.
         """
+
+        def is_whitespace(c):
+            if c == " " or c == "\t" or c == "\r" or c == "\n" or ord(c) == 0x202F:
+                return True
+            return False
+
         sentence = json_dict["sentence"]
-        tokens = self._tokenizer.split_words(sentence)
-        return self.tokens_to_instances(tokens)
+
+        doc_tokens = []
+        char_to_word_offset = []
+        prev_is_whitespace = True
+        for c in sentence:
+            if is_whitespace(c):
+                prev_is_whitespace = True
+            else:
+                if prev_is_whitespace:
+                    doc_tokens.append(c)
+                else:
+                    doc_tokens[-1] += c
+                prev_is_whitespace = False
+            char_to_word_offset.append(len(doc_tokens) - 1)
+        # tokens = [self._tokenizer.split_words(token) for token in doc_tokens]
+        # tokens = self._tokenizer.split_words(sentence)
+        return self.tokens_whitespace_to_instances(tokens=doc_tokens)
 
     @overrides
     def predict_batch_json(self, inputs: List[JsonDict]) -> List[JsonDict]:

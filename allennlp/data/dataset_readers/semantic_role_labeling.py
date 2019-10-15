@@ -238,7 +238,7 @@ class SrlReader(DatasetReader):
         # pylint: disable=arguments-differ
         metadata_dict: Dict[str, Any] = {}
         if self.bert_tokenizer is not None:
-            wordpieces, offsets, start_offsets = self._wordpiece_tokenize_input([t.text for t in tokens])
+            wordpieces, offsets, start_offsets = self._wordpiece_tokenize_input(tokens)
             new_verbs = _convert_verb_indices_to_wordpiece_indices(verb_label, offsets)
             metadata_dict["offsets"] = start_offsets
             # In order to override the indexing mechanism, we need to set the `text_id`
@@ -260,9 +260,9 @@ class SrlReader(DatasetReader):
             verb_index = None
         else:
             verb_index = verb_label.index(1)
-            verb = tokens[verb_index].text
+            verb = tokens[verb_index]
 
-        metadata_dict["words"] = [x.text for x in tokens]
+        metadata_dict["words"] = tokens
         metadata_dict['wordpieces'] = wordpieces
         metadata_dict["verb"] = verb
         metadata_dict["verb_index"] = verb_index
