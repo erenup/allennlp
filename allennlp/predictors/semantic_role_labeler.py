@@ -97,8 +97,14 @@ class SemanticRoleLabelerPredictor(Predictor):
         raise NotImplementedError("The SRL model uses a different API for creating instances.")
 
     def tokens_whitespace_to_instances(self, tokens):
+        #add a special token to distinguished token and subtoken. this is not totally correct, but it should work.
         sentence_joined = " ".join(tokens)
-        word2start = {word: sentence_joined.index(word) for word in sentence_joined.split()}
+        word2start = {}
+        start = 0
+        for word in tokens:
+            word2start[word] = start
+            start += len(word) + 1
+
         spacy_start2word = {w.idx: w.pos_ for w in self._tokenizer.spacy(sentence_joined)}
         instances: List[Instance] = []
         for i, word in enumerate(tokens):
@@ -127,6 +133,27 @@ class SemanticRoleLabelerPredictor(Predictor):
                 instances.append(instance)
         return instances
 
+    def whitespace_tokenize(self, sentence):
+        def is_whitespace(c):
+            if c == " " or c == "\t" or c == "\r" or c == "\n" or ord(c) == 0x202F:
+                return True
+            return False
+
+        doc_tokens = []
+        char_to_word_offset = []
+        prev_is_whitespace = True
+        for c in sentence:
+            if is_whitespace(c):
+                prev_is_whitespace = True
+            else:
+                if prev_is_whitespace:
+                    doc_tokens.append(c)
+                else:
+                    doc_tokens[-1] += c
+                prev_is_whitespace = False
+            char_to_word_offset.append(len(doc_tokens) - 1)
+        return doc_tokens
+
     def _sentence_to_srl_instances(self, json_dict: JsonDict) -> List[Instance]:
         """
         The SRL model has a slightly different API from other models, as the model is run
@@ -147,26 +174,9 @@ class SemanticRoleLabelerPredictor(Predictor):
             One instance per verb.
         """
 
-        def is_whitespace(c):
-            if c == " " or c == "\t" or c == "\r" or c == "\n" or ord(c) == 0x202F:
-                return True
-            return False
 
         sentence = json_dict["sentence"]
-
-        doc_tokens = []
-        char_to_word_offset = []
-        prev_is_whitespace = True
-        for c in sentence:
-            if is_whitespace(c):
-                prev_is_whitespace = True
-            else:
-                if prev_is_whitespace:
-                    doc_tokens.append(c)
-                else:
-                    doc_tokens[-1] += c
-                prev_is_whitespace = False
-            char_to_word_offset.append(len(doc_tokens) - 1)
+        doc_tokens = self.whitespace_tokenize(sentence)
         # tokens = [self._tokenizer.split_words(token) for token in doc_tokens]
         # tokens = self._tokenizer.split_words(sentence)
         return self.tokens_whitespace_to_instances(tokens=doc_tokens)
@@ -207,11 +217,11 @@ class SemanticRoleLabelerPredictor(Predictor):
         if not flattened_instances:
             return_dicts: List[JsonDict] = [{"verbs": []} for x in inputs]
             for sen_index, x in enumerate(inputs):
-                tokens = self._tokenizer.split_words(x['sentence'])
-                instance = self._dataset_reader.text_to_instance(tokens, [0 for _ in tokens])
+                doc_tokens = self.whitespace_tokenize(inputs[sentence_index]["sentence"])
+                instance = self._dataset_reader.text_to_instance(doc_tokens, [0 for _ in doc_tokens])
                 wordpieces = instance.fields['metadata'].metadata['wordpieces']
                 wordpiece_tags = ["O" for _ in wordpieces]
-                return_dicts[sen_index].update({'wordpieces': wordpieces, 'wordpiece_tags': wordpiece_tags, 'verbs': [], 'words': [w.text for w in tokens]})
+                return_dicts[sen_index].update({'wordpieces': wordpieces, 'wordpiece_tags': wordpiece_tags, 'verbs': [], 'words': doc_tokens})
             return sanitize(return_dicts)
 
         # Make the instances into batches and check the last batch for
@@ -234,12 +244,13 @@ class SemanticRoleLabelerPredictor(Predictor):
                 # We didn't run any predictions for sentences with no verbs,
                 # so we don't have a way to extract the original sentence.
                 # Here we just tokenize the input again.
-                tokens = self._tokenizer.split_words(inputs[sentence_index]["sentence"])
-                instance = self._dataset_reader.text_to_instance(tokens, [0 for _ in tokens])
+                # tokens = self._tokenizer.split_words(inputs[sentence_index]["sentence"])
+                doc_tokens = self.whitespace_tokenize(inputs[sentence_index]["sentence"])
+                instance = self._dataset_reader.text_to_instance(doc_tokens, [0 for _ in doc_tokens])
                 wordpieces = instance.fields['metadata'].metadata['wordpieces']
                 wordpiece_tags = ["O" for _ in wordpieces]
 
-                return_dicts[sentence_index]["words"] = [w.text for w in tokens]
+                return_dicts[sentence_index]["words"] = doc_tokens
                 return_dicts[sentence_index]['verbs'] = []
                 return_dicts[sentence_index]['wordpieces'] = wordpieces
                 return_dicts[sentence_index]['wordpiece_tags'] = wordpiece_tags

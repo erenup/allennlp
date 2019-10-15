@@ -227,7 +227,7 @@ class SrlReader(DatasetReader):
                 yield from ontonotes_reader.sentence_iterator(conll_file)
 
     def text_to_instance(self,  # type: ignore
-                         tokens: List[Token],
+                         tokens: List[str],
                          verb_label: List[int],
                          tags: List[str] = None) -> Instance:
         """
