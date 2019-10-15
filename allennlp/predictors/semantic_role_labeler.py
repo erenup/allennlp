@@ -217,7 +217,7 @@ class SemanticRoleLabelerPredictor(Predictor):
         if not flattened_instances:
             return_dicts: List[JsonDict] = [{"verbs": []} for x in inputs]
             for sen_index, x in enumerate(inputs):
-                doc_tokens = self.whitespace_tokenize(inputs[sentence_index]["sentence"])
+                doc_tokens = self.whitespace_tokenize(inputs[sen_index]["sentence"])
                 instance = self._dataset_reader.text_to_instance(doc_tokens, [0 for _ in doc_tokens])
                 wordpieces = instance.fields['metadata'].metadata['wordpieces']
                 wordpiece_tags = ["O" for _ in wordpieces]
