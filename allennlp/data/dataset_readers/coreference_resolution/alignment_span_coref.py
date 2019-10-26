@@ -15,38 +15,6 @@ import re
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-def canonicalize_clusters(clusters: DefaultDict[int, List[Tuple[int, int]]]) -> List[List[Tuple[int, int]]]:
-    """
-    The CONLL 2012 data includes 2 annotated spans which are identical,
-    but have different ids. This checks all clusters for spans which are
-    identical, and if it finds any, merges the clusters containing the
-    identical spans.
-    """
-    merged_clusters: List[Set[Tuple[int, int]]] = []
-    for cluster in clusters.values():
-        cluster_with_overlapping_mention = None
-        for mention in cluster:
-            # Look at clusters we have already processed to
-            # see if they contain a mention in the current
-            # cluster for comparison.
-            for cluster2 in merged_clusters:
-                if mention in cluster2:
-                    # first cluster in merged clusters
-                    # which contains this mention.
-                    cluster_with_overlapping_mention = cluster2
-                    break
-            # Already encountered overlap - no need to keep looking.
-            if cluster_with_overlapping_mention is not None:
-                break
-        if cluster_with_overlapping_mention is not None:
-            # Merge cluster we are currently processing into
-            # the cluster in the processed list.
-            cluster_with_overlapping_mention.update(cluster)
-        else:
-            merged_clusters.append(set(cluster))
-    return [list(c) for c in merged_clusters]
-
-
 @DatasetReader.register("alignment_span")
 class AlignmentSpan(DatasetReader):
     """
@@ -186,23 +154,6 @@ class AlignmentSpan(DatasetReader):
         # --wa_file
         # data / parallel_word_aligned_treebank / bc / WA / character_aligned / CCTV4_ACROSSCHINA_CMN_20050812_150501.wa
 
-        # ontonotes_reader = Ontonotes()
-        # for sentences in ontonotes_reader.dataset_document_iterator(file_path):
-        #     clusters: DefaultDict[int, List[Tuple[int, int]]] = collections.defaultdict(list)
-        #
-        #     total_tokens = 0
-        #     for sentence in sentences:
-        #         for typed_span in sentence.coref_spans:
-        #             # Coref annotations are on a _per sentence_
-        #             # basis, so we need to adjust them to be relative
-        #             # to the length of the document.
-        #             span_id, (start, end) = typed_span
-        #             clusters[span_id].append((start + total_tokens,
-        #                                       end + total_tokens))
-        #         total_tokens += len(sentence.words)
-        #
-        #     canonical_clusters = canonicalize_clusters(clusters)
-        #     yield self.text_to_instance([s.words for s in sentences], canonical_clusters)
 
     @overrides
     def text_to_instance(self,  # type: ignore
@@ -211,26 +162,23 @@ class AlignmentSpan(DatasetReader):
         """
         Parameters
         ----------
-        sentences : ``List[List[str]]``, required.
-            A list of lists representing the tokenised words and sentences in the document.
-        gold_clusters : ``Optional[List[List[Tuple[int, int]]]]``, optional (default = None)
-            A list of all clusters in the document, represented as word spans. Each cluster
-            contains some number of spans, which can be nested and overlap, but will never
-            exactly match between clusters.
+        source: list of chinese character:  <class 'list'>: ['[Speaker#1]', '二', '零', '零', '五', '年', '的', '夏', '天', '，', '一', '个', '*OP*', '*T*-1', '被', '人', '们', '期', '待', '*T*-2', '已', '久', '的', '画', '面', '开', '始', '在', '香', '港', '的', '各', '大', '媒', '体', '频', '繁', '出', '现', '，']
+        target: list of english words: <class 'list'>: ['<47.836:55.349620893:Speaker#1:1>', 'In', 'the', 'summer', 'of', '2005', ',', 'a', 'picture', 'that', 'people', 'have', 'long', 'been', 'looking', 'forward', 'to', '*T*-1', 'started', '*-2', 'emerging', 'with', 'frequency', 'in', 'various', 'major', 'Hong', 'Kong', 'media', '.']
+        gold_clusters: list gold span pairs: <class 'list'>: [[[8, 9], [2, 3, 4], ['夏', '天'], ['In', 'the', 'summer']], [[21, 22], [13], ['已', '久'], ['long']], [[33], [26], ['大'], ['major']], [[40], [30], ['，'], ['.']], [[32], [25], ['各'], ['various']], [[34, 35], [29], ['媒', '体'], ['media']], [[28], [24], ['在'], ['in']], [[11, 12], [8], ['一', '个'], ['a']], [[23], [10], ['的'], ['that']], [[2, 3, 4, 5, 6], [6], ['二', '零', '零', '五', '年'], ['2005']], [[15, 18, 19], [12, 14, 15, 16], ['被', '期', '待'], ['have', 'been', 'looking', 'forward']], [[10], [7], ['，'], [',']], [[7], [5], ['的'], ['of']], [[16, 17], [11], ['人', '们'], ['people']], [[26, 27], [17, 19], ['开', '始'], ['to', 'started']], [[36, 37], [22, 23], ['频', '繁'], ['with', 'frequency']], [[24, 25], [9], ['画', '面'], ['picture']], [[38, 39], [21], ['出', '现'], ['emerging']], [[29, 30, 31], [27, 28], ['香', '港', '的'], ['Hong', 'Kong']], [[], [1], [], ['<47.836:55.349620893:Speaker#1:1>']], [[], [18], [], ['*T*-1']], [[], [20], [], ['*-2']], [[1], [], ['[Speaker#1]'], []], [[13], [], ['*OP*'], []], [[14], [], ['*T*-1'], []], [[20], [], ['*T*-2'], []]]
+                       [[[chinese character indices], [english word indices], [corresponding chinese character], [corresponding english words]], ....]
+        example: a dict, {'chinese': source, 'english': target, 'spans': gold_clusters, 'source': original alignment annotation of chinese sentence, 'target': original aligenment annotation of english sentence}
 
         Returns
+        instance:     {"text": text_field (this is a concat of chinese and english: TextField of length 70 with text:
+ 		                        [cls, 二, 零, 零, 五, 年, 的, 夏, 天, ，, 一, 个, *OP*, *T*-1, 被, 人, 们, 期, 待, *T*-2, 已, 久, 的, 画, 面, 开, 始, 在, 香,
+		                        港, 的, 各, 大, 媒, 体, 频, 繁, 出, 现, ，, sep, In, the, summer, of, 2005, ,, a, picture, that, people, have,
+		                        long, been, looking, forward, to, *T*-1, started, *-2, emerging, with, frequency, in, various,
+		                        major, Hong, Kong, media, .]),
+                                    "spans": span_field (this will indicate each span's label and the label is the indice of gold_clusters. ,
+                                    "metadata": metadata_field,
+                                    "span_labels": SequenceLabelField(span_labels, span_field)
+                    }
         -------
-        An ``Instance`` containing the following ``Fields``:
-            text : ``TextField``
-                The text of the full document.
-            spans : ``ListField[SpanField]``
-                A ListField containing the spans represented as ``SpanFields``
-                with respect to the document text.
-            span_labels : ``SequenceLabelField``, optional
-                The id of the cluster which each possible span belongs to, or -1 if it does
-                 not belong to a cluster. As these labels have variable length (it depends on
-                 how many spans we are considering), we represent this a as a ``SequenceLabelField``
-                 with respect to the ``spans ``ListField``.
         """
         source = ['cls'] + source[1:]
         target = ['sep'] + target[1:]
@@ -238,6 +186,7 @@ class AlignmentSpan(DatasetReader):
         flattened_sentences = source + target
         metadata: Dict[str, Any] = {"original_text": flattened_sentences}
         metadata['example'] = example
+        # here covert spans label of [[[8,9],[2,3,4]], ...] to [[[8,9], [2,4]],....] this may be what conll2012srl outputs
         gold_clusters = self.convert_span_indices2spans(source, target, gold_clusters)
         if gold_clusters is not None:
             metadata["clusters"] = gold_clusters
