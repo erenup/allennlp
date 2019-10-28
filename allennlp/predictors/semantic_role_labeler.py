@@ -175,7 +175,7 @@ class SemanticRoleLabelerPredictor(Predictor):
         """
 
 
-        sentence = json_dict["sentence"]
+        sentence = json_dict["sentence"].lower()
         doc_tokens = self.whitespace_tokenize(sentence)
         # tokens = [self._tokenizer.split_words(token) for token in doc_tokens]
         # tokens = self._tokenizer.split_words(sentence)
